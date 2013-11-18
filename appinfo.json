@@ -1,0 +1,22 @@
+{
+	"uuid": "59be2c6d-a474-4032-97fc-17b55e3d4630",
+	"shortName": "Package Trackr",
+	"longName": "Package Trackr",
+	"companyName": "Neal",
+	"versionCode": 1,
+	"versionLabel": "1.0.0",
+	"capabilities": [ "configurable" ],
+	"watchapp": {
+		"watchface": false
+	},
+	"appKeys": {
+		"item_name": 0,
+		"description": 1,
+		"time": 2,
+		"location": 3,
+		"deliveryEstimate": 4
+	},
+	"resources": {
+		"media": []
+	}
+}
