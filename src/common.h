@@ -2,8 +2,8 @@
 
 typedef struct {
 	int index;
-	char title[90];
-	char subtitle[30];
+	char title[96];
+	char subtitle[32];
 } Package;
 
 enum {

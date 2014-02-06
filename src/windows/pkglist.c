@@ -9,6 +9,7 @@
 static Package packages[MAX_PACKAGES];
 
 static int num_packages;
+static bool no_packages;
 
 static void refresh_list();
 static void request_data();
@@ -58,7 +59,10 @@ void pkglist_in_received_handler(DictionaryIterator *iter) {
 	Tuple *subtitle_tuple = dict_find(iter, KEY_SUBTITLE);
 
 	if (index_tuple && title_tuple && subtitle_tuple) {
-		if (index_tuple->value->int16 == 0) num_packages = 0;
+		if (index_tuple->value->int16 == 0) {
+			num_packages = 0;
+			no_packages = false;
+		}
 		Package package;
 		package.index = index_tuple->value->int16;
 		strncpy(package.title, title_tuple->value->cstring, sizeof(package.title) - 1);
@@ -68,6 +72,10 @@ void pkglist_in_received_handler(DictionaryIterator *iter) {
 		menu_layer_reload_data_and_mark_dirty(menu_layer);
 		APP_LOG(APP_LOG_LEVEL_DEBUG, "received package [%d] %s - %s", package.index, package.title, package.subtitle);
 	}
+	else if (index_tuple) {
+		no_packages = true;
+		menu_layer_reload_data_and_mark_dirty(menu_layer);
+	}
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
@@ -75,6 +83,7 @@ void pkglist_in_received_handler(DictionaryIterator *iter) {
 static void refresh_list() {
 	memset(packages, 0x0, sizeof(packages));
 	num_packages = 0;
+	no_packages = false;
 	menu_layer_set_selected_index(menu_layer, (MenuIndex) { .row = 0, .section = 0 }, MenuRowAlignBottom, false);
 	menu_layer_reload_data_and_mark_dirty(menu_layer);
 	request_data();
@@ -105,18 +114,21 @@ static void menu_draw_header_callback(GContext *ctx, const Layer *cell_layer, ui
 }
 
 static void menu_draw_row_callback(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index, void *callback_context) {
-	if (num_packages == 0) {
-		menu_cell_basic_draw(ctx, cell_layer, "Loading...", NULL, NULL);
+	if (no_packages) {
+		graphics_context_set_text_color(ctx, GColorBlack);
+		graphics_draw_text(ctx, "No packages added.", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 8 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+	} else if (num_packages == 0) {
+		graphics_context_set_text_color(ctx, GColorBlack);
+		graphics_draw_text(ctx, "Loading packages...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 8 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	} else {
 		menu_cell_basic_draw(ctx, cell_layer, packages[cell_index->row].title, packages[cell_index->row].subtitle, NULL);
 	}
 }
 
 static void menu_select_callback(struct MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context) {
-	if (num_packages == 0) {
-		return;
+	if (num_packages > 0) {
+		pkgstatus_init(packages[cell_index->row]);
 	}
-	pkgstatus_init(packages[cell_index->row]);
 }
 
 static void menu_select_long_callback(struct MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context) {

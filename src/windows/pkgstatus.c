@@ -113,7 +113,8 @@ static void menu_draw_header_callback(GContext *ctx, const Layer *cell_layer, ui
 
 static void menu_draw_row_callback(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index, void *callback_context) {
 	if (num_statuses == 0) {
-		menu_cell_basic_draw(ctx, cell_layer, "Loading...", NULL, NULL);
+		graphics_context_set_text_color(ctx, GColorBlack);
+		graphics_draw_text(ctx, "Fetching tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	} else {
 		graphics_context_set_text_color(ctx, GColorBlack);
 		graphics_draw_text(ctx, statuses[cell_index->row].title, fonts_get_system_font(FONT_KEY_GOTHIC_18), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);

@@ -43,7 +43,7 @@ function sendAppMessageQueue() {
 
 function sendPackageList() {
 	if (packages.length === 0) {
-		appMessageQueue.push({'message': {index: 0, title: 'No packages added'}});
+		appMessageQueue.push({message: {index: true}});
 	}
 	for (var i = 0; i < packages.length; i++) {
 		appMessageQueue.push({message: {index: i, title: packages[i].itemName, subtitle: packages[i].trackingNumber}});
@@ -58,17 +58,15 @@ function sendPackageStatus(pkg) {
 		if (xhr.readyState == 4 && xhr.status == 200) {
 			res = JSON.parse(xhr.responseText);
 			if (res.result == 'OK') {
-				if (res.data.tracking) {
-					if (res.data.tracking.length === 0) {
-						appMessageQueue.push({message: {index: 0, title: 'No tracking data found.', status: true}});
-					}
+				if (res.data.tracking && res.data.tracking.length > 0) {
 					for (var i = 0; i < res.data.tracking.length; i++) {
 						var title = res.data.tracking[i].desc + ' at ' + res.data.tracking[i].locStr + ' on ' + res.data.tracking[i].time;
 						appMessageQueue.push({message: {index: i, title: title, status: true}});
 					}
+				} else {
+					appMessageQueue.push({message: {index: 0, title: 'No tracking data found.', status: true}});
 				}
 			} else {
-				console.log('Error received from Boxoh: [' + res.error.errorCode + '] ' + res.error.errorMessage);
 				appMessageQueue.push({message: {index: 0, title: res.error.errorMessage, status: true}});
 			}
 		}
