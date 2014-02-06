@@ -47,8 +47,8 @@ void pkgstatus_init(Package pkg) {
 }
 
 void pkgstatus_destroy(void) {
-	menu_layer_destroy(menu_layer);
-	window_destroy(window);
+	if (menu_layer) menu_layer_destroy(menu_layer);
+	if (window) window_destroy(window);
 }
 
 void pkgstatus_in_received_handler(DictionaryIterator *iter) {
