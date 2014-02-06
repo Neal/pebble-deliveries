@@ -1,77 +1,78 @@
-var maxTriesForSendingAppMessage = 3;
-var timeoutForAppMessageRetry = 3000;
-var timeoutForAPIRequest = 12000;
+var options = {
+	appMessage: {
+		maxTries: 3,
+		retryTimeout: 3000,
+		timeout: 100
+	}
+};
 
-var apiKey = localStorage.getItem('api_key') || '';
-var trackingNumber = localStorage.getItem('tracking_number') || '';
-var itemName = localStorage.getItem('item_name') || trackingNumber;
+var appMessageQueue = [];
+var packages = JSON.parse(localStorage.getItem('packages')) || [];
 
-function sendAppMessage(message, numTries, transactionId) {
-	numTries = numTries || 0;
-	if (numTries < maxTriesForSendingAppMessage) {
-		numTries++;
-		console.log('Sending AppMessage to Pebble: ' + JSON.stringify(message));
-		Pebble.sendAppMessage(
-			message, function() {}, function(e) {
-				console.log('Failed sending AppMessage for transactionId:' + e.data.transactionId + '. Error: ' + e.data.error.message);
-				setTimeout(function() {
-					sendAppMessage(message, numTries, e.data.transactionId);
-				}, timeoutForAppMessageRetry);
-			}
-		);
+function sendAppMessageQueue() {
+	if (appMessageQueue.length > 0) {
+		currentAppMessage = appMessageQueue[0];
+		currentAppMessage.numTries = currentAppMessage.numTries || 0;
+		currentAppMessage.transactionId = currentAppMessage.transactionId || -1;
+		if (currentAppMessage.numTries < options.appMessage.maxTries) {
+			console.log('Sending AppMessage to Pebble: ' + JSON.stringify(currentAppMessage.message));
+			Pebble.sendAppMessage(
+				currentAppMessage.message,
+				function(e) {
+					appMessageQueue.shift();
+					setTimeout(function() {
+						sendAppMessageQueue();
+					}, options.appMessage.timeout);
+				}, function(e) {
+					console.log('Failed sending AppMessage for transactionId:' + e.data.transactionId + '. Error: ' + e.data.error.message);
+					appMessageQueue[0].transactionId = e.data.transactionId;
+					appMessageQueue[0].numTries++;
+					setTimeout(function() {
+						sendAppMessageQueue();
+					}, options.appMessage.retryTimeout);
+				}
+			);
+		} else {
+			appMessageQueue.shift();
+			console.log('Failed sending AppMessage for transactionId:' + currentAppMessage.transactionId + '. Bailing. ' + JSON.stringify(currentAppMessage.message));
+		}
 	} else {
-		console.log('Failed sending AppMessage for transactionId:' + transactionId + '. Bailing. ' + JSON.stringify(message));
+		console.log('AppMessage queue is empty.');
 	}
 }
 
-function makeRequest() {
+function sendPackageList() {
+	if (packages.length === 0) {
+		appMessageQueue.push({'message': {index: 0, title: 'No packages added'}});
+	}
+	for (var i = 0; i < packages.length; i++) {
+		appMessageQueue.push({message: {index: i, title: packages[i].itemName, subtitle: packages[i].trackingNumber}});
+	}
+	sendAppMessageQueue();
+}
+
+function sendPackageStatus(pkg) {
 	var xhr = new XMLHttpRequest();
-	xhr.open('GET', 'http://api.boxoh.com/v2/rest/key/' + apiKey + '/track/' + trackingNumber, true);
-	xhr.timeout = timeoutForAPIRequest;
+	xhr.open('GET', 'http://api.boxoh.com/v2/rest/key/jqyxm3q354-1/track/' + pkg.trackingNumber, true);
 	xhr.onload = function(e) {
-		if (xhr.readyState == 4) {
-			if (xhr.status == 200) {
-				res = JSON.parse(xhr.responseText);
-				if (res.result == 'OK') {
-					var description = '';
-					var time = '';
-					var location = '';
-					var shipper = res.data.shipper || '';
-					var deliveryEstimate = res.data.deliveryEstimate || shipper;
-
-					if (res.data.tracking && res.data.tracking[0] && res.data.tracking[0].desc)
-						description = res.data.tracking[0].desc;
-
-					if (res.data.tracking && res.data.tracking[0] && res.data.tracking[0].time)
-						time = res.data.tracking[0].time;
-
-					if (res.data.tracking && res.data.tracking[0] && res.data.tracking[0].locStr)
-						location = res.data.tracking[0].locStr;
-
-					sendAppMessage({
-						'item_name': itemName.substring(0,13),
-						'description': description,
-						'time': time,
-						'location': location,
-						'deliveryEstimate': deliveryEstimate
-					});
-				} else {
-					console.log('Error received from Boxoh: [' + res.error.errorCode + '] ' + res.error.errorMessage);
-					sendAppMessage({'item_name': res.error.errorMessage});
+		if (xhr.readyState == 4 && xhr.status == 200) {
+			res = JSON.parse(xhr.responseText);
+			if (res.result == 'OK') {
+				if (res.data.tracking) {
+					if (res.data.tracking.length === 0) {
+						appMessageQueue.push({message: {index: 0, title: 'No tracking data found.', status: true}});
+					}
+					for (var i = 0; i < res.data.tracking.length; i++) {
+						var title = res.data.tracking[i].desc + ' at ' + res.data.tracking[i].locStr + ' on ' + res.data.tracking[i].time;
+						appMessageQueue.push({message: {index: i, title: title, status: true}});
+					}
 				}
 			} else {
-				console.log('Request returned error code ' + xhr.status.toString());
-				sendAppMessage({'item_name': 'Error: ' + xhr.statusText});
+				console.log('Error received from Boxoh: [' + res.error.errorCode + '] ' + res.error.errorMessage);
+				appMessageQueue.push({message: {index: 0, title: res.error.errorMessage, status: true}});
 			}
 		}
-	}
-	xhr.ontimeout = function() {
-		console.log('Error: request timed out!');
-		sendAppMessage({'item_name': 'Error: Request timed out!'});
-	};
-	xhr.onerror = function(e) {
-		console.log(JSON.stringify(e));
-		sendAppMessage({'item_name': 'Error: Failed to connect!'});
+		sendAppMessageQueue();
 	};
 	xhr.send(null);
 }
@@ -80,44 +81,28 @@ Pebble.addEventListener('ready', function(e) {});
 
 Pebble.addEventListener('appmessage', function(e) {
 	console.log('AppMessage received from Pebble: ' + JSON.stringify(e.payload));
-
-	if (!apiKey) {
-		console.log('API Key not set!');
-		sendAppMessage({'item_name': 'Set Boxoh API key via Pebble app!'});
-		return;
+	if (e.payload.status) {
+		sendPackageStatus(packages[e.payload.index]);
+	} else {
+		sendPackageList();
 	}
-
-	if (!trackingNumber) {
-		console.log('tracking number not set!');
-		sendAppMessage({'item_name': 'Set tracking number via Pebble app!'});
-		return;
-	}
-
-	makeRequest();
 });
 
 Pebble.addEventListener('showConfiguration', function(e) {
-	var uri = 'https://rawgithub.com/Neal/pebble-package-trackr/master/html/configuration.html?' +
-				'api_key=' + encodeURIComponent(apiKey) +
-				'&tracking_number=' + encodeURIComponent(trackingNumber) +
-				'&item_name=' + encodeURIComponent(itemName);
+	var data = {
+		packages: packages
+	};
+	var uri = 'http://neal.github.io/pebble-package-trackr/index.html?data=' + encodeURIComponent(JSON.stringify(data));
 	console.log('showing configuration at uri: ' + uri);
 	Pebble.openURL(uri);
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
-	console.log('configuration closed');
 	if (e.response) {
-		var options = JSON.parse(decodeURIComponent(e.response));
-		console.log('options received from configuration: ' + JSON.stringify(options));
-		apiKey = options['api_key'];
-		trackingNumber = options['tracking_number'];
-		itemName = options['item_name'] || trackingNumber;
-		localStorage.setItem('api_key', apiKey);
-		localStorage.setItem('tracking_number', trackingNumber);
-		localStorage.setItem('item_name', itemName);
-		makeRequest();
-	} else {
-		console.log('no options received');
+		var data = JSON.parse(decodeURIComponent(e.response)) || [];
+		console.log('[configuration] data received: ' + JSON.stringify(data));
+		packages = data.packages;
+		localStorage.setItem('packages', JSON.stringify(packages));
+		sendPackageList();
 	}
 });

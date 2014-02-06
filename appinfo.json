@@ -10,11 +10,10 @@
 		"watchface": false
 	},
 	"appKeys": {
-		"item_name": 0,
-		"description": 1,
-		"time": 2,
-		"location": 3,
-		"deliveryEstimate": 4
+		"index": 0,
+		"title": 1,
+		"subtitle": 2,
+		"status": 3
 	},
 	"resources": {
 		"media": []
