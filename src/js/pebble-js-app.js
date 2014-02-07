@@ -42,6 +42,7 @@ function sendAppMessageQueue() {
 }
 
 function sendPackageList() {
+	appMessageQueue = [];
 	if (packages.length === 0) {
 		appMessageQueue.push({message: {index: true}});
 	}
@@ -52,6 +53,7 @@ function sendPackageList() {
 }
 
 function sendPackageStatus(pkg) {
+	appMessageQueue = [];
 	var xhr = new XMLHttpRequest();
 	xhr.open('GET', 'http://api.boxoh.com/v2/rest/key/jqyxm3q354-1/track/' + pkg.trackingNumber, true);
 	xhr.onload = function(e) {
