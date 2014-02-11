@@ -11,7 +11,7 @@ $(document).bind('pageinit', function() {
 
 	$.each(packages, function(index, pkg) {
 		var newPanel = $('.panel-template').first().clone();
-		addNewPanel(pkg.item_name, newPanel);
+		addNewPanel(pkg.itemName, newPanel);
 		$.each(pkg, function(index, value) {
 			newPanel.find('#'+index).val(value);
 		});
