@@ -1,59 +1,54 @@
-var options = {
-	appMessage: {
-		maxTries: 3,
-		retryTimeout: 3000,
-		timeout: 100
+var packages = JSON.parse(localStorage.getItem('packages')) || [];
+
+var appMessageQueue = {
+	queue: [],
+	numTries: 0,
+	maxTries: 5,
+	add: function(obj) {
+		this.queue.push(obj);
+	},
+	clear: function() {
+		this.queue = [];
+	},
+	isEmpty: function() {
+		return this.queue.length === 0;
+	},
+	nextMessage: function() {
+		return this.isEmpty() ? {} : this.queue[0];
+	},
+	send: function() {
+		if (this.queue.length > 0) {
+			var ack = function() {
+				appMessageQueue.numTries = 0;
+				appMessageQueue.queue.shift();
+				appMessageQueue.send();
+			};
+			var nack = function() {
+				appMessageQueue.numTries++;
+				appMessageQueue.send();
+			};
+			if (this.numTries >= this.maxTries) {
+				console.log('Failed sending AppMessage: ' + JSON.stringify(this.nextMessage()));
+				ack();
+			}
+			Pebble.sendAppMessage(this.nextMessage(), ack, nack);
+		}
 	}
 };
 
-var appMessageQueue = [];
-var packages = JSON.parse(localStorage.getItem('packages')) || [];
-
-function sendAppMessageQueue() {
-	if (appMessageQueue.length > 0) {
-		currentAppMessage = appMessageQueue[0];
-		currentAppMessage.numTries = currentAppMessage.numTries || 0;
-		currentAppMessage.transactionId = currentAppMessage.transactionId || -1;
-		if (currentAppMessage.numTries < options.appMessage.maxTries) {
-			console.log('Sending AppMessage to Pebble: ' + JSON.stringify(currentAppMessage.message));
-			Pebble.sendAppMessage(
-				currentAppMessage.message,
-				function(e) {
-					appMessageQueue.shift();
-					setTimeout(function() {
-						sendAppMessageQueue();
-					}, options.appMessage.timeout);
-				}, function(e) {
-					console.log('Failed sending AppMessage for transactionId:' + e.data.transactionId + '. Error: ' + e.data.error.message);
-					appMessageQueue[0].transactionId = e.data.transactionId;
-					appMessageQueue[0].numTries++;
-					setTimeout(function() {
-						sendAppMessageQueue();
-					}, options.appMessage.retryTimeout);
-				}
-			);
-		} else {
-			appMessageQueue.shift();
-			console.log('Failed sending AppMessage for transactionId:' + currentAppMessage.transactionId + '. Bailing. ' + JSON.stringify(currentAppMessage.message));
-		}
-	} else {
-		console.log('AppMessage queue is empty.');
-	}
-}
-
 function sendPackageList() {
-	appMessageQueue = [];
+	appMessageQueue.clear();
 	if (packages.length === 0) {
-		appMessageQueue.push({message: {index: true}});
+		appMessageQueue.add({index: true});
 	}
 	for (var i = 0; i < packages.length; i++) {
-		appMessageQueue.push({message: {index: i, title: packages[i].itemName, subtitle: packages[i].trackingNumber}});
+		appMessageQueue.add({index: i, title: packages[i].itemName, subtitle: packages[i].trackingNumber});
 	}
-	sendAppMessageQueue();
+	appMessageQueue.send();
 }
 
 function sendPackageStatus(pkg) {
-	appMessageQueue = [];
+	appMessageQueue.clear();
 	var xhr = new XMLHttpRequest();
 	xhr.open('GET', 'http://api.boxoh.com/v2/rest/key/jqyxm3q354-1/track/' + pkg.trackingNumber, true);
 	xhr.onload = function(e) {
@@ -63,16 +58,16 @@ function sendPackageStatus(pkg) {
 				if (res.data.tracking && res.data.tracking.length > 0) {
 					for (var i = 0; i < res.data.tracking.length; i++) {
 						var title = res.data.tracking[i].desc + ' at ' + res.data.tracking[i].locStr + ' on ' + res.data.tracking[i].time;
-						appMessageQueue.push({message: {index: i, title: title, status: true}});
+						appMessageQueue.add({index: i, title: title, status: true});
 					}
 				} else {
-					appMessageQueue.push({message: {index: 0, title: 'No tracking data found.', status: true}});
+					appMessageQueue.add({index: 0, title: 'No tracking data found.', status: true});
 				}
 			} else {
-				appMessageQueue.push({message: {index: 0, title: res.error.errorMessage, status: true}});
+				appMessageQueue.add({index: 0, title: res.error.errorMessage, status: true});
 			}
 		}
-		sendAppMessageQueue();
+		appMessageQueue.send();
 	};
 	xhr.send(null);
 }
@@ -89,9 +84,7 @@ Pebble.addEventListener('appmessage', function(e) {
 });
 
 Pebble.addEventListener('showConfiguration', function(e) {
-	var data = {
-		packages: packages
-	};
+	var data = {packages: packages};
 	var uri = 'http://neal.github.io/pebble-package-trackr/index.html?data=' + encodeURIComponent(JSON.stringify(data));
 	console.log('showing configuration at uri: ' + uri);
 	Pebble.openURL(uri);

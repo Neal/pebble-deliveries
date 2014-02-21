@@ -10,6 +10,8 @@ static Package packages[MAX_PACKAGES];
 
 static int num_packages;
 static bool no_packages;
+static bool out_sent;
+static bool out_failed;
 
 static void refresh_list();
 static void request_data();
@@ -70,12 +72,29 @@ void pkglist_in_received_handler(DictionaryIterator *iter) {
 		packages[package.index] = package;
 		num_packages++;
 		menu_layer_reload_data_and_mark_dirty(menu_layer);
-		APP_LOG(APP_LOG_LEVEL_DEBUG, "received package [%d] %s - %s", package.index, package.title, package.subtitle);
 	}
 	else if (index_tuple) {
 		no_packages = true;
 		menu_layer_reload_data_and_mark_dirty(menu_layer);
 	}
+}
+
+void pkglist_in_dropped_handler(AppMessageResult reason) {
+
+}
+
+void pkglist_out_sent_handler(DictionaryIterator *sent) {
+	out_sent = true;
+	menu_layer_reload_data_and_mark_dirty(menu_layer);
+}
+
+void pkglist_out_failed_handler(DictionaryIterator *failed, AppMessageResult reason) {
+	out_failed = true;
+	menu_layer_reload_data_and_mark_dirty(menu_layer);
+}
+
+bool pkglist_is_on_top() {
+	return window == window_stack_get_top_window();
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
@@ -84,6 +103,8 @@ static void refresh_list() {
 	memset(packages, 0x0, sizeof(packages));
 	num_packages = 0;
 	no_packages = false;
+	out_sent = false;
+	out_failed = false;
 	menu_layer_set_selected_index(menu_layer, (MenuIndex) { .row = 0, .section = 0 }, MenuRowAlignBottom, false);
 	menu_layer_reload_data_and_mark_dirty(menu_layer);
 	request_data();
@@ -114,7 +135,10 @@ static void menu_draw_header_callback(GContext *ctx, const Layer *cell_layer, ui
 }
 
 static void menu_draw_row_callback(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index, void *callback_context) {
-	if (no_packages) {
+	if (out_failed) {
+		graphics_context_set_text_color(ctx, GColorBlack);
+		graphics_draw_text(ctx, "Unable to connect to phone!", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+	} else if (no_packages) {
 		graphics_context_set_text_color(ctx, GColorBlack);
 		graphics_draw_text(ctx, "No packages added.", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 8 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	} else if (num_packages == 0) {

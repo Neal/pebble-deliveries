@@ -9,6 +9,8 @@ static Package statuses[MAX_STATUSES];
 static Package package;
 
 static int num_statuses;
+static bool out_sent;
+static bool out_failed;
 
 static void refresh_list();
 static void request_data();
@@ -56,14 +58,35 @@ void pkgstatus_in_received_handler(DictionaryIterator *iter) {
 	Tuple *title_tuple = dict_find(iter, KEY_TITLE);
 
 	if (index_tuple && title_tuple) {
-		Package package;
-		package.index = index_tuple->value->int16;
-		strncpy(package.title, title_tuple->value->cstring, sizeof(package.title) - 1);
-		statuses[package.index] = package;
+		if (index_tuple->value->int16 == 0) num_statuses = 0;
+		out_sent = false;
+		out_failed = false;
+		Package status;
+		status.index = index_tuple->value->int16;
+		strncpy(status.title, title_tuple->value->cstring, sizeof(status.title) - 1);
+		statuses[status.index] = status;
 		num_statuses++;
 		menu_layer_reload_data_and_mark_dirty(menu_layer);
-		APP_LOG(APP_LOG_LEVEL_DEBUG, "received package [%d] %s", package.index, package.title);
 	}
+}
+
+void pkgstatus_in_dropped_handler(AppMessageResult reason) {
+
+}
+
+void pkgstatus_out_sent_handler(DictionaryIterator *sent) {
+	out_sent = true;
+	menu_layer_reload_data_and_mark_dirty(menu_layer);
+}
+
+void pkgstatus_out_failed_handler(DictionaryIterator *failed, AppMessageResult reason) {
+	out_failed = true;
+	menu_layer_reload_data_and_mark_dirty(menu_layer);
+}
+
+
+bool pkgstatus_is_on_top() {
+	return window == window_stack_get_top_window();
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
@@ -71,6 +94,8 @@ void pkgstatus_in_received_handler(DictionaryIterator *iter) {
 static void refresh_list() {
 	memset(statuses, 0x0, sizeof(statuses));
 	num_statuses = 0;
+	out_sent = false;
+	out_failed = false;
 	menu_layer_set_selected_index(menu_layer, (MenuIndex) { .row = 0, .section = 0 }, MenuRowAlignBottom, false);
 	menu_layer_reload_data_and_mark_dirty(menu_layer);
 	request_data();
@@ -112,9 +137,15 @@ static void menu_draw_header_callback(GContext *ctx, const Layer *cell_layer, ui
 }
 
 static void menu_draw_row_callback(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index, void *callback_context) {
-	if (num_statuses == 0) {
+	if (out_failed) {
 		graphics_context_set_text_color(ctx, GColorBlack);
-		graphics_draw_text(ctx, "Fetching tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+		graphics_draw_text(ctx, "Unable to connect to phone!", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+	} else if (out_sent) {
+		graphics_context_set_text_color(ctx, GColorBlack);
+		graphics_draw_text(ctx, "Receiving tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+	} else if (num_statuses == 0) {
+		graphics_context_set_text_color(ctx, GColorBlack);
+		graphics_draw_text(ctx, "Requesting tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	} else {
 		graphics_context_set_text_color(ctx, GColorBlack);
 		graphics_draw_text(ctx, statuses[cell_index->row].title, fonts_get_system_font(FONT_KEY_GOTHIC_18), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
