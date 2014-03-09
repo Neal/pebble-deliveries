@@ -72,7 +72,9 @@ function sendPackageStatus(pkg) {
 	xhr.send(null);
 }
 
-Pebble.addEventListener('ready', function(e) {});
+Pebble.addEventListener('ready', function(e) {
+	sendPackageList();
+});
 
 Pebble.addEventListener('appmessage', function(e) {
 	console.log('AppMessage received from Pebble: ' + JSON.stringify(e.payload));

@@ -45,8 +45,6 @@ void pkglist_init(void) {
 	menu_layer_add_to_window(menu_layer, window);
 
 	window_stack_push(window, true);
-
-	refresh_list();
 }
 
 void pkglist_destroy(void) {
