@@ -55,6 +55,14 @@ function sendPackageStatus(pkg) {
 		if (xhr.readyState == 4 && xhr.status == 200) {
 			res = JSON.parse(xhr.responseText);
 			if (res.result == 'OK') {
+				if (res.data.deliveryEstimate) {
+					try {
+						var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+						var date = new Date(res.data.deliveryEstimate * 1000);
+						var estimate = months[date.getMonth()] + ' ' + date.getDate();
+						appMessageQueue.add({title: estimate, status: true});
+					} catch (ex) {}
+				}
 				if (res.data.tracking && res.data.tracking.length > 0) {
 					for (var i = 0; i < res.data.tracking.length; i++) {
 						var title = res.data.tracking[i].desc + ' at ' + res.data.tracking[i].locStr + ' on ' + res.data.tracking[i].time;

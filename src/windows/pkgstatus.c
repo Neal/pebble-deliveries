@@ -8,6 +8,8 @@
 static Package statuses[MAX_STATUSES];
 static Package package;
 
+static char estimate[24];
+static int num_sections;
 static int num_statuses;
 static bool out_sent;
 static bool out_failed;
@@ -68,6 +70,10 @@ void pkgstatus_in_received_handler(DictionaryIterator *iter) {
 		num_statuses++;
 		menu_layer_reload_data_and_mark_dirty(menu_layer);
 	}
+	else if (title_tuple) {
+		strncpy(estimate, title_tuple->value->cstring, sizeof(estimate) - 1);
+		menu_layer_reload_data_and_mark_dirty(menu_layer);
+	}
 }
 
 void pkgstatus_in_dropped_handler(AppMessageResult reason) {
@@ -92,6 +98,7 @@ bool pkgstatus_is_on_top() {
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - //
 
 static void refresh_list() {
+	estimate[0] = '\0';
 	memset(statuses, 0x0, sizeof(statuses));
 	num_statuses = 0;
 	out_sent = false;
@@ -115,18 +122,22 @@ static void request_data() {
 }
 
 static uint16_t menu_get_num_sections_callback(struct MenuLayer *menu_layer, void *callback_context) {
-	return 1;
+	return (strlen(estimate) != 0) ? 2 : 1;
 }
 
 static uint16_t menu_get_num_rows_callback(struct MenuLayer *menu_layer, uint16_t section_index, void *callback_context) {
+	if (strlen(estimate) != 0 && section_index == 0) return 1;
 	return (num_statuses) ? num_statuses : 1;
 }
 
 static int16_t menu_get_header_height_callback(struct MenuLayer *menu_layer, uint16_t section_index, void *callback_context) {
-	return 0;
+	return MENU_CELL_BASIC_HEADER_HEIGHT;
 }
 
 static int16_t menu_get_cell_height_callback(struct MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context) {
+	if (strlen(estimate) != 0 && cell_index->section == 0) {
+		return 34;
+	}
 	if (num_statuses != 0) {
 		return graphics_text_layout_get_content_size(statuses[cell_index->row].title, fonts_get_system_font(FONT_KEY_GOTHIC_18), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft).h + 8;
 	}
@@ -134,20 +145,24 @@ static int16_t menu_get_cell_height_callback(struct MenuLayer *menu_layer, MenuI
 }
 
 static void menu_draw_header_callback(GContext *ctx, const Layer *cell_layer, uint16_t section_index, void *callback_context) {
+	if (strlen(estimate) != 0 && section_index == 0) {
+		menu_cell_basic_header_draw(ctx, cell_layer, "Delivery Estimate");
+	} else {
+		menu_cell_basic_header_draw(ctx, cell_layer, "Shipment Progress");
+	}
 }
 
 static void menu_draw_row_callback(GContext *ctx, const Layer *cell_layer, MenuIndex *cell_index, void *callback_context) {
-	if (out_failed) {
-		graphics_context_set_text_color(ctx, GColorBlack);
-		graphics_draw_text(ctx, "Unable to connect to phone!", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+	graphics_context_set_text_color(ctx, GColorBlack);
+	if (strlen(estimate) != 0 && cell_index->section == 0 && cell_index->row == 0) {
+		graphics_draw_text(ctx, estimate, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD), (GRect) { .origin = { 4, 0 }, .size = { PEBBLE_WIDTH - 8, 28 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+	} else if (out_failed) {
+		graphics_draw_text(ctx, "Unable to connect to phone!", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 44 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	} else if (out_sent) {
-		graphics_context_set_text_color(ctx, GColorBlack);
-		graphics_draw_text(ctx, "Receiving tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+		graphics_draw_text(ctx, "Receiving tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 44 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	} else if (num_statuses == 0) {
-		graphics_context_set_text_color(ctx, GColorBlack);
-		graphics_draw_text(ctx, "Requesting tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
+		graphics_draw_text(ctx, "Requesting tracking data...", fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 44 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	} else {
-		graphics_context_set_text_color(ctx, GColorBlack);
 		graphics_draw_text(ctx, statuses[cell_index->row].title, fonts_get_system_font(FONT_KEY_GOTHIC_18), (GRect) { .origin = { 2, 0 }, .size = { PEBBLE_WIDTH - 4, 128 } }, GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 	}
 }
