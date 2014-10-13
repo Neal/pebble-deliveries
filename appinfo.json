@@ -1,0 +1,29 @@
+{
+	"uuid": "59be2c6d-a474-4032-97fc-17b55e3d4630",
+	"shortName": "Deliveries",
+	"longName": "Deliveries",
+	"companyName": "Neal",
+	"versionCode": 1,
+	"versionLabel": "2.0",
+	"capabilities": [ "configurable" ],
+	"watchapp": {
+		"watchface": false
+	},
+	"appKeys": {
+		"type": 0,
+		"method": 1,
+		"index": 2,
+		"title": 3,
+		"subtitle": 4
+	},
+	"resources": {
+		"media": [
+			{
+				"menuIcon": true,
+				"type": "png",
+				"name": "IMAGE_MENU_ICON",
+				"file": "images/menu_icon.png"
+			}
+		]
+	}
+}

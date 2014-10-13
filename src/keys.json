@@ -1,0 +1,15 @@
+{
+	"TYPE": [
+		"PACKAGE",
+		"PROGRESS"
+	],
+	"METHOD": [
+		"ERROR",
+		"SIZE",
+		"DATA",
+		"ESTIMATE",
+		"REQUESTPACKAGES",
+		"REQUESTPROGRESS",
+		"READY"
+	]
+}
